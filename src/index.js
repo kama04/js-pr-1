@@ -1,8 +1,8 @@
-const container = document.querySelector('#carousel')
-const slidesContainer = container.querySelector('#slides-container')
+const container = document.querySelector('#carousel');
+const slidesContainer = container.querySelector('#slides-container');
 const slides = container.querySelectorAll('.slide');
-const indicators = container.querySelectorAll('.indicator')
-const indicatorContainer = container.querySelector('#indicators-container')
+const indicators = container.querySelectorAll('.indicator');
+const indicatorContainer = container.querySelector('#indicators-container');
 const pauseBtn = container.querySelector('#pause-btn');
 const previousBtn = container.querySelector('#previous-btn');
 const nextBtn = container.querySelector('#next-btn');
@@ -25,68 +25,74 @@ const CODE_ARROW_LEFT = 'ArrowLeft';
 const CODE_ARROW_RIGHT = 'ArrowRight';
 const SWIPE_THRESHOLD = 50;
 
-
 let currentSlide = 0;
+let basePrice = slidePrices[currentSlide];
 let timerId = null;
 let isPlaying = true;
 let swipeStartX = 0;
 let swipeEndX = 0;
 
+// ==== Основные функции карусели ====
 function gotoNth(n) {
-slides[currentSlide].classList.toggle('active')
-indicators[currentSlide].classList.toggle('active')
-indicators[currentSlide].style.background = null
-currentSlide = (n + SLIDE_COUNT) % SLIDE_COUNT
-slides[currentSlide].classList.toggle('active')
-indicators[currentSlide].classList.toggle('active')
-indicators[currentSlide].style.background = window.getComputedStyle(slides[currentSlide]).background;
-title.textContent = slideNames[currentSlide];
-basePrice = slidePrices[currentSlide];
+    slides[currentSlide].classList.remove('active');
+    indicators[currentSlide].classList.remove('active');
+    indicators[currentSlide].style.background = null;
 
-updatePrice();
+    currentSlide = (n + SLIDE_COUNT) % SLIDE_COUNT;
+
+    slides[currentSlide].classList.add('active');
+    indicators[currentSlide].classList.add('active');
+    indicators[currentSlide].style.background = window.getComputedStyle(slides[currentSlide]).background;
+
+    title.textContent = slideNames[currentSlide];
+    basePrice = slidePrices[currentSlide];
+
+    updatePrice();
+}
+
+function gotoPrev() {
+    gotoNth(currentSlide - 1);
+}
+
+function gotoNext() {
+    gotoNth(currentSlide + 1);
 }
 
 function updatePrice() {
-    const quantity = parseInt(quantityInput.value, 10);
+    const quantity = parseInt(quantityInput.value, 10) || 1;
     const totalPrice = basePrice * quantity;
-  
-    // Если количество изменено вручную — ставим паузу
+
     if (quantityInput.dataset.changed === "true") pauseHandler();
-  
+
     price.textContent =
-      quantity > 1 ? `$${totalPrice.toFixed(2)}` : `$${basePrice.toFixed(2)} / piece`;
-  }
-  
-
-function gotoPrev(){
-gotoNth(currentSlide - 1);
+        quantity > 1 ? `$${totalPrice.toFixed(2)}` : `$${basePrice.toFixed(2)} / piece`;
 }
 
-function gotoNext(){
-gotoNth(currentSlide + 1);
-}
-
-function tick(){
+// ==== Автопроигрывание ====
+function tick() {
+    clearInterval(timerId);
     timerId = setInterval(gotoNext, TIMER_INTERVAL);
 }
 
 function pauseHandler() {
-    if(!isPlaying) return;
+    if (!isPlaying) return;
     pauseBtn.innerHTML = FA_PLAY;
-    isPlaying =!isPlaying;
+    isPlaying = false;
     clearInterval(timerId);
- }
+}
 
 function playHandler() {
-    if(isPlaying) return;
+    if (isPlaying) return;
     pauseBtn.innerHTML = FA_PAUSE;
-    isPlaying =!isPlaying;
+    isPlaying = true;
     tick();
- }
+}
+
 function togglePlayHandler() {
     isPlaying ? pauseHandler() : playHandler();
 }
 
+// ==== Управление слайдами ====
 function nextHandler() {
     gotoNext();
     pauseHandler();
@@ -98,7 +104,7 @@ function prevHandler() {
 }
 
 function indicatorClickHandler(e) {
-    const { target } = e;
+    const target = e.target;
     if (target && target.classList.contains('indicator')) {
         pauseHandler();
         gotoNth(+target.dataset.slideTo);
@@ -107,7 +113,6 @@ function indicatorClickHandler(e) {
 
 function keyDownHandler(e) {
     const code = e.code;
-
     if (code === CODE_SPACE) {
         e.preventDefault();
         togglePlayHandler();
@@ -116,58 +121,55 @@ function keyDownHandler(e) {
     if (code === CODE_ARROW_RIGHT) nextHandler();
 }
 
+// ==== Свайпы ====
 function swipeStartHandler(e) {
-    if (e instanceof MouseEvent) {
-        swipeStartX = e.clientX;
-    } else if (e instanceof TouchEvent) {
-        e.preventDefault(); 
+    if (e instanceof MouseEvent) swipeStartX = e.clientX;
+    else if (e instanceof TouchEvent) {
+        e.preventDefault();
         swipeStartX = e.changedTouches[0].clientX;
     }
     swipeEndX = 0;
 }
 
-
 function swipeEndHandler(e) {
-    if (e instanceof MouseEvent) {
-        swipeEndX = e.clientX;
-    } else if (e instanceof TouchEvent) {
-        swipeEndX = e.changedTouches[0].clientX;
-    }
-    
-    const diff = swipeEndX - swipeStartX;
+    if (e instanceof MouseEvent) swipeEndX = e.clientX;
+    else if (e instanceof TouchEvent) swipeEndX = e.changedTouches[0].clientX;
 
-    if(diff > SWIPE_THRESHOLD) prevHandler();
-    if(diff < -SWIPE_THRESHOLD) nextHandler();
+    const diff = swipeEndX - swipeStartX;
+    if (diff > SWIPE_THRESHOLD) prevHandler();
+    if (diff < -SWIPE_THRESHOLD) nextHandler();
 }
 
-
+// ==== Количество товара ====
 increaseBtn.addEventListener("click", () => {
     quantityInput.value = parseInt(quantityInput.value) + 1;
     quantityInput.dataset.changed = "true";
     updatePrice();
-  });
-  
-  decreaseBtn.addEventListener("click", () => {
+});
+
+decreaseBtn.addEventListener("click", () => {
     if (parseInt(quantityInput.value) > 1) {
-      quantityInput.value = parseInt(quantityInput.value) - 1;
-      quantityInput.dataset.changed = "true";
-      updatePrice();
+        quantityInput.value = parseInt(quantityInput.value) - 1;
+        quantityInput.dataset.changed = "true";
+        updatePrice();
     }
-  });
-  
-  quantityInput.addEventListener("input", () => {
+});
+
+quantityInput.addEventListener("input", () => {
     if (quantityInput.value < 1) quantityInput.value = 1;
     quantityInput.dataset.changed = "true";
     updatePrice();
-  });
-  
-  // === Сброс выбора ===
-  resetBtn.addEventListener("click", () => {
+});
+
+// ==== Сброс ====
+resetBtn.addEventListener("click", () => {
     quantityInput.value = 1;
     quantityInput.dataset.changed = "false";
     updatePrice();
-    startAutoSlide(); // снова запускаем автослайд
-  });
+    tick(); // снова запускаем автослайд
+});
+
+// ==== События ====
 pauseBtn.addEventListener('click', togglePlayHandler);
 previousBtn.addEventListener('click', prevHandler);
 nextBtn.addEventListener('click', nextHandler);
@@ -179,5 +181,6 @@ slidesContainer.addEventListener('mousedown', swipeStartHandler);
 slidesContainer.addEventListener('mouseup', swipeEndHandler);
 slidesContainer.addEventListener('mouseleave', swipeEndHandler);
 
-// Инициализация карусели
-tick();
+// ==== Инициализация ====
+gotoNth(0); // отображаем первый слайд
+tick();      // запускаем автопроигрывание
