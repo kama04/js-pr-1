@@ -2,11 +2,11 @@
 
 const DEFAULT_SETTINGS = {
     slideImages: [
-        "../assets/img/acai-dessert.jpg",
-        "../assets/img/brownie.jpg",
-        "../assets/img/choco-cake.jpg",
-        "../assets/img/pavlova_canelle.jpg",
-        "../assets/img/tart-berry.jpg"
+        "assets/img/acai-dessert.jpg",
+        "assets/img/brownie.jpg",
+        "assets/img/choco-cake.jpg",
+        "assets/img/pavlova_canelle.jpg",
+        "assets/img/tart-berry.jpg"
     ],
     slideNames: ["Acai Dessert", "Brownie", "Chocolate Cake", "Pavlova Canelle", "Berry Tart"],
     slidePrices: [10, 8, 12, 11, 9],
@@ -300,5 +300,7 @@ class SwipeCarousel extends Carousel {
         if (diff < -this.swipeThreshold) this.next();
     }
 }
-
+export { Carousel, SwipeCarousel };
 const carousel = new SwipeCarousel();
+
+
