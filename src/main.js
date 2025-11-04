@@ -1,183 +1,304 @@
-const container = document.querySelector('#carousel')
-const slidesContainer = container.querySelector('#slides-container')
-const slides = container.querySelectorAll('.slide');
-const indicators = container.querySelectorAll('.indicator')
-const indicatorContainer = container.querySelector('#indicators-container')
-const pauseBtn = container.querySelector('#pause-btn');
-const previousBtn = container.querySelector('#previous-btn');
-const nextBtn = container.querySelector('#next-btn');
-const title = document.querySelector('.slider__title');
-const price = document.querySelector('.slider__price span');
-const decreaseBtn = document.getElementById('decrease');
-const increaseBtn = document.getElementById('increase');
-const quantityInput = document.getElementById('quantity');
-const resetBtn = document.getElementById('reset');
+// carousel.js
 
-const slideNames = ["Acai Dessert", "Brownie", "Chocolate Cake", "Pavlova Canelle", "Berry Tart"];
-const slidePrices = [10, 8, 12, 11, 9];
+const DEFAULT_SETTINGS = {
+    slideImages: [
+        "../assets/img/acai-dessert.jpg",
+        "../assets/img/brownie.jpg",
+        "../assets/img/choco-cake.jpg",
+        "../assets/img/pavlova_canelle.jpg",
+        "../assets/img/tart-berry.jpg"
+    ],
+    slideNames: ["Acai Dessert", "Brownie", "Chocolate Cake", "Pavlova Canelle", "Berry Tart"],
+    slidePrices: [10, 8, 12, 11, 9],
+    timerInterval: 2000,
+    startSlide: 0,
+    isPlaying: true,
+    swipeThreshold: 100
+};
 
-const SLIDE_COUNT = slides.length;
-const TIMER_INTERVAL = 2000;
-const FA_PAUSE = '<i class="fa-solid fa-pause"></i>';
-const FA_PLAY = '<i class="fa-solid fa-play"></i>';
-const CODE_SPACE = 'Space';
-const CODE_ARROW_LEFT = 'ArrowLeft';
-const CODE_ARROW_RIGHT = 'ArrowRight';
-const SWIPE_THRESHOLD = 50;
+class Carousel {
+    constructor(options = {}) {
+        this.settings = { ...DEFAULT_SETTINGS, ...options };
+        this.currentSlide = this.settings.startSlide;
+        this.isPlaying = this.settings.isPlaying;
+        this.timerId = null;
+        this.swipeStartX = 0;
+        this.swipeEndX = 0;
 
-
-let currentSlide = 0;
-let timerId = null;
-let isPlaying = true;
-let swipeStartX = 0;
-let swipeEndX = 0;
-
-function gotoNth(n) {
-slides[currentSlide].classList.toggle('active')
-indicators[currentSlide].classList.toggle('active')
-indicators[currentSlide].style.background = null
-currentSlide = (n + SLIDE_COUNT) % SLIDE_COUNT
-slides[currentSlide].classList.toggle('active')
-indicators[currentSlide].classList.toggle('active')
-indicators[currentSlide].style.background = window.getComputedStyle(slides[currentSlide]).background;
-title.textContent = slideNames[currentSlide];
-basePrice = slidePrices[currentSlide];
-
-updatePrice();
-}
-
-function updatePrice() {
-    const quantity = parseInt(quantityInput.value, 10);
-    const totalPrice = basePrice * quantity;
-  
-    // Если количество изменено вручную — ставим паузу
-    if (quantityInput.dataset.changed === "true") pauseHandler();
-  
-    price.textContent =
-      quantity > 1 ? `$${totalPrice.toFixed(2)}` : `$${basePrice.toFixed(2)} / piece`;
-  }
-  
-
-function gotoPrev(){
-gotoNth(currentSlide - 1);
-}
-
-function gotoNext(){
-gotoNth(currentSlide + 1);
-}
-
-function tick(){
-    timerId = setInterval(gotoNext, TIMER_INTERVAL);
-}
-
-function pauseHandler() {
-    if(!isPlaying) return;
-    pauseBtn.innerHTML = FA_PLAY;
-    isPlaying =!isPlaying;
-    clearInterval(timerId);
- }
-
-function playHandler() {
-    if(isPlaying) return;
-    pauseBtn.innerHTML = FA_PAUSE;
-    isPlaying =!isPlaying;
-    tick();
- }
-function togglePlayHandler() {
-    isPlaying ? pauseHandler() : playHandler();
-}
-
-function nextHandler() {
-    gotoNext();
-    pauseHandler();
-}
-
-function prevHandler() {
-    gotoPrev();
-    pauseHandler();
-}
-
-function indicatorClickHandler(e) {
-    const { target } = e;
-    if (target && target.classList.contains('indicator')) {
-        pauseHandler();
-        gotoNth(+target.dataset.slideTo);
+        this._createLayout();
+        this._initProps();
+        this._initControls();
+        this._initIndicators();
+        this._initEventsListeners();
+        if (this.isPlaying) this._tick();
     }
-}
 
-function keyDownHandler(e) {
-    const code = e.code;
+    _createLayout() {
+        this.container = document.createElement('div');
+        this.container.id = 'carousel';
+        this.container.classList.add('carousel');
 
-    if (code === CODE_SPACE) {
-        e.preventDefault();
-        togglePlayHandler();
+        this.slidesContainer = document.createElement('div');
+        this.slidesContainer.id = 'slides-container';
+        this.slidesContainer.classList.add('slides');
+
+        this.settings.slideImages.forEach((img, i) => {
+            const slide = document.createElement('div');
+            slide.classList.add('slide');
+            if (i === this.currentSlide) slide.classList.add('active');
+            slide.style.backgroundImage = `url(${img})`;
+            slide.style.backgroundSize = 'cover';
+            slide.style.backgroundPosition = 'center';
+            slide.style.backgroundRepeat = 'no-repeat';
+            this.slidesContainer.appendChild(slide);
+        });
+
+        this.container.appendChild(this.slidesContainer);
+
+        // Отдельные элементы для названия и цены
+        this.titleElement = document.createElement('div');
+        this.titleElement.classList.add('slider__title');
+        this.titleElement.textContent = this.settings.slideNames[this.currentSlide];
+
+        this.priceElement = document.createElement('div');
+        this.priceElement.classList.add('slider__price');
+        this.priceElement.textContent = `$${this.settings.slidePrices[this.currentSlide]} × 1`;
+
+        this.container.appendChild(this.titleElement);
+        this.container.appendChild(this.priceElement);
+
+        document.body.appendChild(this.container);
     }
-    if (code === CODE_ARROW_LEFT) prevHandler();
-    if (code === CODE_ARROW_RIGHT) nextHandler();
-}
 
-function swipeStartHandler(e) {
-    if (e instanceof MouseEvent) {
-        swipeStartX = e.clientX;
-    } else if (e instanceof TouchEvent) {
-        e.preventDefault(); 
-        swipeStartX = e.changedTouches[0].clientX;
+    _initProps() {
+        this.slides = this.slidesContainer.querySelectorAll('.slide');
+        this.SLIDE_COUNT = this.slides.length;
+        this.timerInterval = this.settings.timerInterval;
     }
-    swipeEndX = 0;
-}
 
+    _initControls() {
+        this.controlsContainer = document.createElement('div');
+        this.controlsContainer.classList.add('controls');
 
-function swipeEndHandler(e) {
-    if (e instanceof MouseEvent) {
-        swipeEndX = e.clientX;
-    } else if (e instanceof TouchEvent) {
-        swipeEndX = e.changedTouches[0].clientX;
+        this.prevBtn = document.createElement('button');
+        this.prevBtn.id = 'prev-btn';
+        this.prevBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>';
+
+        this.pauseBtn = document.createElement('button');
+        this.pauseBtn.id = 'pause-btn';
+        this.pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+
+        this.nextBtn = document.createElement('button');
+        this.nextBtn.id = 'next-btn';
+        this.nextBtn.innerHTML = '<i class="fa-solid fa-arrow-right"></i>';
+
+        this.controlsContainer.append(this.prevBtn, this.pauseBtn, this.nextBtn);
+        this.container.appendChild(this.controlsContainer);
+
+        // Кнопки количества и покупка
+        const quantityControls = document.createElement('div');
+        quantityControls.classList.add('quantity-controls');
+
+        this.decreaseBtn = document.createElement('button');
+        this.decreaseBtn.id = 'decrease';
+        this.decreaseBtn.innerHTML = '<i class="fa-solid fa-minus"></i>';
+
+        this.quantityInput = document.createElement('input');
+        this.quantityInput.type = 'number';
+        this.quantityInput.id = 'quantity';
+        this.quantityInput.value = 1;
+        this.quantityInput.min = 1;
+        this.quantityInput.dataset.changed = "false";
+
+        this.increaseBtn = document.createElement('button');
+        this.increaseBtn.id = 'increase';
+        this.increaseBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+
+        this.resetBtn = document.createElement('button');
+        this.resetBtn.id = 'reset';
+        this.resetBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+
+        this.buyBtn = document.createElement('button');
+        this.buyBtn.id = 'buy-btn';
+        this.buyBtn.classList.add('slider__buy-btn');
+        this.buyBtn.innerHTML = '<i class="fa-solid fa-cart-shopping"></i> Buy';
+
+        quantityControls.append(this.decreaseBtn, this.quantityInput, this.increaseBtn, this.resetBtn, this.buyBtn);
+        this.container.appendChild(quantityControls);
+
+        // Обработчики
+        this.increaseBtn.addEventListener('click', () => this._increaseBtnHandler());
+        this.decreaseBtn.addEventListener('click', () => this._decreaseBtnHandler());
+        this.resetBtn.addEventListener('click', () => this._resetBtnHandler());
+        this.quantityInput.addEventListener('input', () => this._quantityInputHandler());
+        this.buyBtn.addEventListener('click', () => this._buyHandler());
+    }
+
+    _initIndicators() {
+        this.indicatorContainer = document.createElement('div');
+        this.indicatorContainer.classList.add('indicators');
+
+        this.slides.forEach((_, i) => {
+            const indicator = document.createElement('div');
+            indicator.classList.add('indicator');
+            indicator.dataset.slideTo = i;
+            indicator.style.backgroundImage = `url(${this.settings.slideImages[i]})`;
+            indicator.style.backgroundSize = 'cover';
+            indicator.style.backgroundPosition = 'center';
+            indicator.style.backgroundRepeat = 'no-repeat';
+            if (i === this.currentSlide) indicator.classList.add('active');
+            this.indicatorContainer.appendChild(indicator);
+        });
+
+        this.indicators = this.indicatorContainer.querySelectorAll('.indicator');
+        this.container.appendChild(this.indicatorContainer);
+    }
+
+    _initEventsListeners() {
+        this.prevBtn.addEventListener('click', () => this.prev());
+        this.nextBtn.addEventListener('click', () => this.next());
+        this.pauseBtn.addEventListener('click', () => this.pausePlay());
+
+        this.indicatorContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('indicator')) {
+                this._gotoNth(+e.target.dataset.slideTo);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); this.pausePlay(); }
+            if (e.code === 'ArrowLeft') this.prev();
+            if (e.code === 'ArrowRight') this.next();
+        });
+    }
+
+    _updatePrice() {
+        const quantity = parseInt(this.quantityInput.value);
+        const price = this.settings.slidePrices[this.currentSlide];
+    
+        if (quantity === 1) {
+            this.priceElement.textContent = `€${price} / piece`;
+        } else {
+            const total = quantity * price;
+            this.priceElement.textContent = `${quantity} × €${price} = €${total}`;
+        }
     }
     
-    const diff = swipeEndX - swipeStartX;
 
-    if(diff > SWIPE_THRESHOLD) prevHandler();
-    if(diff < -SWIPE_THRESHOLD) nextHandler();
+    _increaseBtnHandler() {
+        this.quantityInput.value = parseInt(this.quantityInput.value) + 1;
+        this.quantityInput.dataset.changed = "true";
+        this.pause();
+        this._updatePrice();
+    }
+
+    _decreaseBtnHandler() {
+        if (parseInt(this.quantityInput.value) > 1) {
+            this.quantityInput.value = parseInt(this.quantityInput.value) - 1;
+            this.quantityInput.dataset.changed = "true";
+            this._updatePrice();
+        }
+    }
+
+    _quantityInputHandler() {
+        if (this.quantityInput.value < 1) this.quantityInput.value = 1;
+        this.quantityInput.dataset.changed = "true";
+        this._updatePrice();
+    }
+
+    _resetBtnHandler() {
+        this.quantityInput.value = 1;
+        this.quantityInput.dataset.changed = "false";
+        this._updatePrice();
+    }
+
+    _buyHandler() {
+        alert(`Спасибо за покупку!\nВы купили ${this.quantityInput.value} × ${this.settings.slideNames[this.currentSlide]}`);
+        this._resetBtnHandler();
+    }
+
+    _gotoNth(n) {
+        // сброс количества при смене слайда
+        if (this.quantityInput.dataset.changed === "true") {
+            this._resetBtnHandler();
+        }
+
+        this.slides[this.currentSlide].classList.remove('active');
+        this.indicators[this.currentSlide].classList.remove('active');
+
+        this.currentSlide = (n + this.SLIDE_COUNT) % this.SLIDE_COUNT;
+
+        this.slides[this.currentSlide].classList.add('active');
+        this.indicators[this.currentSlide].classList.add('active');
+
+        this.titleElement.textContent = this.settings.slideNames[this.currentSlide];
+        this._updatePrice();
+    }
+
+    next() {
+        this._gotoNth(this.currentSlide + 1);
+    }
+
+    prev() {
+        this._gotoNth(this.currentSlide - 1);
+    }
+
+    pause() {
+        if (!this.isPlaying) return;
+        clearInterval(this.timerId);
+        this.isPlaying = false;
+        this.pauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+    }
+
+    play() {
+        if (this.isPlaying) return;
+        this.isPlaying = true;
+        this.pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        this._tick();
+    }
+
+    pausePlay() {
+        this.isPlaying ? this.pause() : this.play();
+    }
+
+    _tick() {
+        clearInterval(this.timerId);
+        this.timerId = setInterval(() => this._gotoNth(this.currentSlide + 1), this.timerInterval);
+    }
 }
 
-
-increaseBtn.addEventListener("click", () => {
-    quantityInput.value = parseInt(quantityInput.value) + 1;
-    quantityInput.dataset.changed = "true";
-    updatePrice();
-  });
-  
-  decreaseBtn.addEventListener("click", () => {
-    if (parseInt(quantityInput.value) > 1) {
-      quantityInput.value = parseInt(quantityInput.value) - 1;
-      quantityInput.dataset.changed = "true";
-      updatePrice();
+class SwipeCarousel extends Carousel {
+    constructor(options) {
+        super(options);
+        this.swipeThreshold = this.settings.swipeThreshold;
+        this._initSwipeListeners();
     }
-  });
-  
-  quantityInput.addEventListener("input", () => {
-    if (quantityInput.value < 1) quantityInput.value = 1;
-    quantityInput.dataset.changed = "true";
-    updatePrice();
-  });
-  
-  // === Сброс выбора ===
-  resetBtn.addEventListener("click", () => {
-    quantityInput.value = 1;
-    quantityInput.dataset.changed = "false";
-    updatePrice();
-    startAutoSlide(); // снова запускаем автослайд
-  });
-pauseBtn.addEventListener('click', togglePlayHandler);
-previousBtn.addEventListener('click', prevHandler);
-nextBtn.addEventListener('click', nextHandler);
-indicatorContainer.addEventListener('click', indicatorClickHandler);
-document.addEventListener('keydown', keyDownHandler);
-slidesContainer.addEventListener('touchstart', swipeStartHandler, { passive: false });
-slidesContainer.addEventListener('touchend', swipeEndHandler);
-slidesContainer.addEventListener('mousedown', swipeStartHandler);
-slidesContainer.addEventListener('mouseup', swipeEndHandler);
-slidesContainer.addEventListener('mouseleave', swipeEndHandler);
 
-// Инициализация карусели
-tick();
+    _initSwipeListeners() {
+        this.slidesContainer.addEventListener('touchstart', (e) => this._swipeStart(e), { passive: false });
+        this.slidesContainer.addEventListener('touchend', (e) => this._swipeEnd(e));
+        this.slidesContainer.addEventListener('mousedown', (e) => this._swipeStart(e));
+        this.slidesContainer.addEventListener('mouseup', (e) => this._swipeEnd(e));
+        this.slidesContainer.addEventListener('mouseleave', (e) => this._swipeEnd(e));
+    }
+
+    _swipeStart(e) {
+        if (e instanceof MouseEvent) this.swipeStartX = e.clientX;
+        if (e instanceof TouchEvent) {
+            e.preventDefault();
+            this.swipeStartX = e.changedTouches[0].clientX;
+        }
+        this.swipeEndX = 0;
+    }
+
+    _swipeEnd(e) {
+        if (e instanceof MouseEvent) this.swipeEndX = e.clientX;
+        if (e instanceof TouchEvent) this.swipeEndX = e.changedTouches[0].clientX;
+
+        const diff = this.swipeEndX - this.swipeStartX;
+        if (diff > this.swipeThreshold) this.prev();
+        if (diff < -this.swipeThreshold) this.next();
+    }
+}
+
+const carousel = new SwipeCarousel();
